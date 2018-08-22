@@ -7,9 +7,10 @@ use Magento\Framework\App\Action\Context;
 use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\View\Result\PageFactory;
 use Magento\Framework\Exception\LocalizedException;
-//use Magento\Framework\Controller\Result\JsonFactory;
-//use Magefan\Blog\Api\DataManagementInterface;
 use Appsgenii\Blog\Model\PostFactory;
+use Magento\Framework\Filesystem;
+use Magento\MediaStorage\Model\File\UploaderFactory;
+use Magento\Framework\App\Filesystem\DirectoryList;
 
 class Submit extends Action
 {
@@ -32,6 +33,9 @@ class Submit extends Action
      */
     private $logger;
 
+    protected $fileSystem;
+    protected $uploaderFactory;
+
     /**
      * @param Context $context
      * @param ResultFactory $resultFactory
@@ -45,13 +49,18 @@ class Submit extends Action
         ResultFactory $resultFactory,
         PageFactory $pageFactory,
         PostFactory $postFactory,
-        \Psr\Log\LoggerInterface $logger
+        \Psr\Log\LoggerInterface $logger,
+        Filesystem $fileSystem,
+        UploaderFactory $uploaderFactory
+
     )
     {
         $this->resultFactory = $resultFactory;
         $this->postFactory = $postFactory;
         $this->logger = $logger;
         $this->pageFactory = $pageFactory;
+        $this->fileSystem = $fileSystem;
+        $this->uploaderFactory = $uploaderFactory;
         return parent::__construct($context);
     }
 
@@ -61,44 +70,75 @@ class Submit extends Action
      */
     public function execute()
     {
-        $input = print_r($_POST);
-        $bgImage = $this->getRequest()->getFiles('files');
-        print_r($bgImage);
+        $destinationPath = $this->getDestinationPath();
+        $files = $this->getRequest()->getFiles('files');
 
-        var_dump($_POST['message']);
-        exit();
-        $title = $_POST['title'];
-        $email = $_POST['email'];
-        $contact = $_POST['contact'];
-        $company = $_POST['company'];
-        $message = $_POST['message'];
-       echo $title;
-       echo $email;
-       echo $contact;
-       echo $company;
-       echo $content;
+        if ($files) {
+            $fileCount = 0;
+            foreach($files as $file){
+                try {
+                    $uploader = $this->uploaderFactory->create(['fileId' => $files[$fileCount]])
+                        ->setAllowCreateFolders(true)
+                        ->setAllowedExtensions(['jpg', 'jpeg', 'pdf', 'png'])
+                        ->setAllowRenameFiles(true);
 
-        $data = array(
-            'title'=>$title,
-            'email'=>$email,
-            'contact'=>$contact,
-            'company'=>$company,
-            'message'=>$message,
-            'files'=>$files
-        );
-        $postResource = $this->postFactory->create();
-        try {
-            $postResource->setData($data);
-            $postResource->save();
-            $this->messageManager->addSuccessMessage("New Post: " . $title . " Created");
-            $redirect = $this->resultFactory->create(ResultFactory::TYPE_REDIRECT);
-            $redirect->setUrl('/gifts/');
-            return $redirect;
-        }catch (\Exception $e) {
-            //Add a error message if we cant save the new note from some reason
-            $this->messageManager->addErrorMessage("Unable to save this Post: " . $title);
-            $this->logger->info('Blog Post Submit Error', ['exception' => $e]);
-            throw new LocalizedException(__('Blog Post Save Failed'));
+                    if (!$uploader->save($destinationPath)) {
+                        throw new LocalizedException(
+                            __('File cannot be saved to path: $1', $destinationPath)
+                        );
+                    }
+                    else{
+                        // process the uploaded file
+                        $uploadedFiles[] = $uploader->getUploadedFileName();
+                        $fileNameString = implode(', ',$uploadedFiles);
+                        var_dump($uploadedFiles);
+                    }
+                } catch (\Exception $e) {
+                    $this->messageManager->addError(
+                        __($e->getMessage())
+                    );
+                }
+                $fileCount++;
+            }
+            //Save Post to DB
+            $title = $_POST['title'];
+            $email = $_POST['email'];
+            $contact = $_POST['contact'];
+            $company = $_POST['company'];
+            $message = $_POST['message'];
+
+            $data = array(
+                'title'=>$title,
+                'email'=>$email,
+                'contact'=>$contact,
+                'company'=>$company,
+                'message'=>$message,
+                'files'=>$fileNameString
+
+            );
+            $postResource = $this->postFactory->create();
+            try {
+                $postResource->setData($data);
+                $postResource->save();
+                $this->messageManager->addSuccessMessage("Submitted: Thanks your order submitted");
+                $redirect = $this->resultFactory->create(ResultFactory::TYPE_REDIRECT);
+                $redirect->setUrl('/gifts/');
+                return $redirect;
+            }catch (\Exception $e) {
+                //Add a error message if we cant save the new note from some reason
+                $this->messageManager->addErrorMessage("Unable to save this Post: " . $title);
+                $this->logger->info('Blog Post Submit Error', ['exception' => $e]);
+                throw new LocalizedException(__('Blog Post Save Failed'));
+            }
         }
     }
+
+    public function getDestinationPath() {
+
+        return $this->fileSystem
+            ->getDirectoryWrite(DirectoryList::MEDIA)
+            ->getAbsolutePath('/appsgenii/gifts/');
+    }
+
+
 }
