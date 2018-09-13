@@ -7,10 +7,10 @@ use Magento\Framework\App\Action\Context;
 use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\View\Result\PageFactory;
 use Magento\Framework\Exception\LocalizedException;
-use Appsgenii\Blog\Model\PostFactory;
 use Magento\Framework\Filesystem;
 use Magento\MediaStorage\Model\File\UploaderFactory;
 use Magento\Framework\App\Filesystem\DirectoryList;
+use Appsgenii\Blog\Model\Post;
 
 class Submit extends Action
 {
@@ -24,9 +24,9 @@ class Submit extends Action
     protected $resultFactory;
 
     /**
-     * @var PostFactory
+     * @var Post
      */
-    protected $postFactory;
+    protected $post;
 
     /**
      * @var \Psr\Log\LoggerInterface
@@ -39,16 +39,15 @@ class Submit extends Action
     /**
      * @param Context $context
      * @param ResultFactory $resultFactory
-     * @param ManagementInterfaceFactory $postFactory
-     * @param ManagementInterface $postRepository
+     * @param PageFactory $pageFactory
+     * @param Post $post
      * @param \Psr\Log\LoggerInterface $logger
-     * @param \Magento\Framework\Controller\Result\JsonFactory $resultJsonFactory
      */
     public function __construct(
         Context $context,
         ResultFactory $resultFactory,
         PageFactory $pageFactory,
-        PostFactory $postFactory,
+        Post $post,
         \Psr\Log\LoggerInterface $logger,
         Filesystem $fileSystem,
         UploaderFactory $uploaderFactory
@@ -56,11 +55,11 @@ class Submit extends Action
     )
     {
         $this->resultFactory = $resultFactory;
-        $this->postFactory = $postFactory;
-        $this->logger = $logger;
         $this->pageFactory = $pageFactory;
         $this->fileSystem = $fileSystem;
         $this->uploaderFactory = $uploaderFactory;
+        $this->post = $post;
+        $this->logger = $logger;
         return parent::__construct($context);
     }
 
@@ -91,7 +90,6 @@ class Submit extends Action
                         // process the uploaded file
                         $uploadedFiles[] = $uploader->getUploadedFileName();
                         $fileNameString = implode(', ',$uploadedFiles);
-                        var_dump($uploadedFiles);
                     }
                 } catch (\Exception $e) {
                     $this->messageManager->addError(
@@ -107,20 +105,16 @@ class Submit extends Action
             $company = $_POST['company'];
             $message = $_POST['message'];
 
-            $data = array(
-                'title'=>$title,
-                'email'=>$email,
-                'contact'=>$contact,
-                'company'=>$company,
-                'message'=>$message,
-                'files'=>$fileNameString
-
-            );
-            $postResource = $this->postFactory->create();
+            $post = $this->post;
             try {
-                $postResource->setData($data);
-                $postResource->save();
-                $this->messageManager->addSuccessMessage("Submitted: Thanks your order submitted");
+                $post->setTitle($title);
+                $post->setEmail($email);
+                $post->setContact($contact);
+                $post->setCompany($company);
+                $post->setMessage($message);
+                $post->setFiles($fileNameString);
+                $post->save();
+                $this->messageManager->addSuccessMessage("Submitted: Thanks for your order");
                 $redirect = $this->resultFactory->create(ResultFactory::TYPE_REDIRECT);
                 $redirect->setUrl('/gifts/');
                 return $redirect;
