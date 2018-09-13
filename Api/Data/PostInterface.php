@@ -15,7 +15,7 @@ interface PostInterface
     const MESSAGE               = 'message';
     const CONTENT               = 'content';
     const FILES               = 'files';
-    const CREATED_AT            = 'created_at';
+    const CREATED_AT            = 'creation_time';
 
     /**
      * Set Title
