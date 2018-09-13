@@ -7,12 +7,17 @@ use Magento\Framework\Model\Context;
 use Magento\Framework\Registry;
 use Magento\Framework\Model\ResourceModel\AbstractResource;
 use Magento\Framework\Data\Collection\AbstractDb;
+use Magento\Framework\DataObject\IdentityInterface;
 use Appsgenii\Blog\Api\Data\PostInterface;
 
 
-class Post extends AbstractModel implements PostInterface
+class Post extends AbstractModel implements PostInterface, IdentityInterface
 {
 
+    /**
+     * Cache tag
+     */
+    const CACHE_TAG = 'kvr_blog_post';
 
     function __construct(
         Context $context,
@@ -87,7 +92,7 @@ class Post extends AbstractModel implements PostInterface
      */
     public function setMessage($message)
     {
-        return $this->setData(self::Message, $message);
+        return $this->setData(self::MESSAGE, $message);
     }
 
     /**
@@ -112,4 +117,12 @@ class Post extends AbstractModel implements PostInterface
         return $this->setData(self::CREATED_AT, $createdAt);
     }
 
+    /**
+     * Return identities
+     * @return string[]
+     */
+    public function getIdentities()
+    {
+        return [self::CACHE_TAG . '_' . $this->getId()];
+    }
 }
